@@ -1,6 +1,5 @@
 #!/bin/sh
 
-
 # INSTALL :
 # Simply move this script in /usr/local/bin and use "chmod +x" 
 #
@@ -8,14 +7,10 @@
 # pdftocairo, rar and zip commands, use pdftocbx -t to test requirements
 # pdftocbx -h print help
 #
-# TODO :
-# 1) Test if command work 
-# 2) do work with space named file or directory
-# 3) multilanguage
-# mickael.j@gmail.com
+# tychomat@gmail.com
 
 PrgName="pdftocbx"
-Version="0.1-1"
+Version="1.1"
 OPTERROR=33
 # set TMP dir
 TMP="/tmp"
@@ -23,22 +18,22 @@ neededCommands="pdftocairo rar zip"
 
 testDep ()
 {
-	command -v command >/dev/null 2>&1 || 
-	{
-    	echo "WARNING> \"command\" not found. Check requirements skipped !"
-       	return 1 ;
+        command -v command >/dev/null 2>&1 || 
+        {
+        echo "WARNING> \"command\" not found. Check requirements skipped !"
+        return 1 ;
     }
-	for requirement in ${neededCommands} ; 
-		do
-        	echo -n "checking for \"$requirement\" ... " ;
-        	command -v ${requirement} > /dev/null && {
+        for requirement in ${neededCommands} ; 
+                do
+                echo -n "checking for \"$requirement\" ... " ;
+                command -v ${requirement} > /dev/null && {
             echo "ok" ;
             continue ;
             } || {
             echo "required but not found !" ;
             _return=1 ;
             }
-       	done
+        done
         [ -z "${_return}" ] || { 
                 echo "ERR > Requirement missing." >&2 ; 
                 exit 1 ;
@@ -47,80 +42,123 @@ testDep ()
 
 version ()
 {
-	echo "$PrgName version $Version"
+        echo "$PrgName version $Version"
 }
 
 thishelp ()
 {
-	echo "Usage & options"
-	echo "-f File_to_convert"
-	echo "-z create a CBZ archive (default)"
-	echo "-r create a CBR archive"
-	echo "-v Version"
-	echo "-h Help"
-	echo "-t Test dependencies"
-	echo ""
-	echo "a temp dir is created and removed after completation. You can set temp dir in script."
+        echo "Usage & options"
+        echo "-f File_to_convert"
+        echo "-d Directory_containing_PDFs_to_convert"
+        echo "-l List_file_containing_PDFs_to_convert"
+        echo "-z create a CBZ archive (default)"
+        echo "-r create a CBR archive"
+        echo "-v Version"
+        echo "-h Help"
+        echo "-t Test dependencies"
+        echo ""
+        echo "a temp dir is created and removed after completion. You can set temp dir in script."
 }
 
 convert ()
 {
+        PdfFile=$1
+        PdfBase=$(basename "$PdfFile")
+        PdfDir=$(basename "$PdfBase" .pdf)
+        SrcDir=$(dirname "$PdfFile")
 
-	PdfFile=$1
-	curDir=$PWD
-	PdfDir=${PdfFile%%.*}
-	if [ ! -d "$TMP/$PdfDir" ]
-		then
-			mkdir "$TMP/$PdfDir" 
-			echo "$PdfDir temp directory created"		
-		else
-			echo "$PdfDir temp directory exist. Something wrong with last conversion ?"
-	fi
-	cp "$curDir/"$PdfFile "$TMP/$PdfDir" 
-	echo "Extract PDF to images, sometimes take few minutes according to file size "
-	pdftocairo -jpeg "$TMP/$PdfDir/"$PdfFile "$TMP/$PdfDir/"$PdfFile
-	
-	case $ARC in
-		z) 
-		echo "Create CBZ archive"
-		zip   "$TMP/$PdfDir/"$PdfDir.cbz "$TMP/$PdfDir/"*.jpg > /dev/null;
-		mv "$TMP/$PdfDir/"$PdfDir.cbz "$curDir";
-		echo "$curDir/$PdfDir.cbz done !";;
-		r) 
-		echo "Create CBR archive"
-		rar a "$TMP/$PdfDir/"$PdfDir.cbr "$TMP/$PdfDir/"*.jpg  > /dev/null;
-		mv "$TMP/$PdfDir/"$PdfDir.cbr "$curDir";
-		echo "$curDir/$PdfDir.cbr done !";;
-		: ) echo "no archive type given (-z | -x), try -help to fix it";;
-	esac
+        echo "Processing $PdfFile as $PdfBase in directory $PdfDir"
 
+        if [ ! -d "$TMP/$PdfDir" ]; then
+                mkdir "$TMP/$PdfDir" 
+                echo "$PdfDir temp directory created"           
+        else
+                echo "$PdfDir temp directory exists. Something wrong with last conversion?"
+        fi
 
-	rm "$TMP/$PdfDir/"*
-	rmdir "$TMP/$PdfDir/"
+        cp "$PdfFile" "$TMP/$PdfDir" 
+        echo "Extracting PDF to images, sometimes takes a few minutes according to file size"
+        pdftocairo -jpeg "$TMP/$PdfDir/$PdfBase" "$TMP/$PdfDir/$PdfDir"
+        
+        if [ $? -ne 0 ]; then
+                echo "Error: pdftocairo failed"
+                return 1
+        fi
+
+        case $ARC in
+                z) 
+                echo "Creating CBZ archive"
+                zip "$TMP/$PdfDir/$PdfDir.cbz" "$TMP/$PdfDir/"*.jpg > /dev/null
+                if [ $? -ne 0 ]; then
+                        echo "Error: zip creation failed"
+                        return 1
+                fi
+                mv "$TMP/$PdfDir/$PdfDir.cbz" "$SrcDir"
+                echo "$SrcDir/$PdfDir.cbz done!";;
+                r) 
+                echo "Creating CBR archive"
+                rar a "$TMP/$PdfDir/$PdfDir.cbr" "$TMP/$PdfDir/"*.jpg > /dev/null
+                if [ $? -ne 0 ]; then
+                        echo "Error: rar creation failed"
+                        return 1
+                fi
+                mv "$TMP/$PdfDir/$PdfDir.cbr" "$SrcDir"
+                echo "$SrcDir/$PdfDir.cbr done!";;
+                :) echo "No archive type given (-z | -r), try -h to fix it";;
+        esac
+
+        rm "$TMP/$PdfDir/"*
+        rmdir "$TMP/$PdfDir/"
 }
 
+convert_all ()
+{
+        PdfDir=$1
+        for PdfFile in "$PdfDir"*.pdf; do
+                [ -e "$PdfFile" ] || continue
+                echo "Converting $PdfFile"
+                convert "$PdfFile"
+        done
+}
 
-if [ -z $1 ]
-	then
-		echo "no file given (-f arg)"
-		echo "Usage: $PrgName option (-f|vh)"
-		echo "-help to list options"
-		exit $OPTERROR
+convert_from_list ()
+{
+        ListFile=$1
+        while IFS= read -r PdfFile; do
+                [ -e "$PdfFile" ] || continue
+                echo "Converting $PdfFile"
+                convert "$PdfFile"
+        done < "$ListFile"
+}
+
+if [ -z "$1" ]; then
+        echo "No file or directory given (-f, -d or -l arg)"
+        echo "Usage: $PrgName option (-f|-d|-l|vh)"
+        echo "-help to list options"
+        exit $OPTERROR
 fi
 
-while getopts ":f:zrtvh" Option
-	do
-  		case $Option in
-  			f) file=$OPTARG;
-				echo $OPTARG;
-				convert "$file";;
-			z) ARC=z;;
-			r) ARC=r;;
-			t) testDep;;
-		    v) version;;
-			h) thishelp;;
-			:) echo "argument required, try -h to help";;
-			\?) echo "invalid option, try -h to help";
-			   exit 1;;
- 		esac
-  	done
+while getopts ":f:d:l:zrtvh" Option; do
+        case $Option in
+                f) file=$OPTARG
+                        ARC=${ARC:-z}  # Default to CBZ if no archive type is specified
+                        echo "File to convert: $file"
+                        convert "$file";;
+                d) dir=$OPTARG
+                        ARC=${ARC:-z}  # Default to CBZ if no archive type is specified
+                        echo "Directory to convert: $dir"
+                        convert_all "$dir";;
+                l) list=$OPTARG
+                        ARC=${ARC:-z}  # Default to CBZ if no archive type is specified
+                        echo "List file to convert: $list"
+                        convert_from_list "$list";;
+                z) ARC=z;;
+                r) ARC=r;;
+                t) testDep;;
+                v) version;;
+                h) thishelp;;
+                :) echo "Argument required, try -h for help";;
+                \?) echo "Invalid option, try -h for help"
+                   exit 1;;
+        esac
+done

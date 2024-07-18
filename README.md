@@ -10,8 +10,3 @@ REQUIRE :
 
 -  pdftocairo, rar and zip commands, use pdftocbx -t to test requirements
 -  pdftocbx -h print help
-
-TODO :
-- 1) Test if command work 
-- 2) do work with space named file or directory
-- 3) imagemagik ?
